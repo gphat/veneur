@@ -3,6 +3,7 @@ package veneur
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -25,6 +26,7 @@ import (
 	"github.com/pkg/profile"
 
 	"github.com/stripe/veneur/plugins"
+	localfilep "github.com/stripe/veneur/plugins/localfile"
 	s3p "github.com/stripe/veneur/plugins/s3"
 	"github.com/stripe/veneur/samplers"
 	"github.com/stripe/veneur/trace"
@@ -33,6 +35,9 @@ import (
 // VERSION stores the current veneur version.
 // It must be a var so it can be set at link time.
 var VERSION = "dirty"
+
+// REDACTED should be a constant since we use it enough.
+const REDACTED = "REDACTED"
 
 var profileStartOnce = sync.Once{}
 
@@ -164,8 +169,8 @@ func NewFromConfig(conf Config) (ret Server, err error) {
 	ret.HTTPAddr = conf.HTTPAddress
 	ret.ForwardAddr = conf.ForwardAddress
 
-	conf.Key = "REDACTED"
-	conf.SentryDsn = "REDACTED"
+	conf.Key = REDACTED
+	conf.SentryDsn = REDACTED
 	log.WithField("config", conf).Debug("Initialized server")
 
 	if len(conf.TraceAddress) > 0 && len(conf.TraceAPIAddress) > 0 {
@@ -190,17 +195,17 @@ func NewFromConfig(conf Config) (ret Server, err error) {
 		trace.Disabled = true
 	}
 
-	var svc s3iface.S3API = nil
-	aws_id := conf.AwsAccessKeyID
-	aws_secret := conf.AwsSecretAccessKey
+	var svc s3iface.S3API
+	awsID := conf.AwsAccessKeyID
+	awsSecret := conf.AwsSecretAccessKey
 
-	conf.AwsAccessKeyID = "REDACTED"
-	conf.AwsSecretAccessKey = "REDACTED"
+	conf.AwsAccessKeyID = REDACTED
+	conf.AwsSecretAccessKey = REDACTED
 
-	if len(aws_id) > 0 && len(aws_secret) > 0 {
+	if len(awsID) > 0 && len(awsSecret) > 0 {
 		sess, err := session.NewSession(&aws.Config{
 			Region:      aws.String(conf.AwsRegion),
-			Credentials: credentials.NewStaticCredentials(aws_id, aws_secret, ""),
+			Credentials: credentials.NewStaticCredentials(awsID, awsSecret, ""),
 		})
 
 		if err != nil {
@@ -226,6 +231,15 @@ func NewFromConfig(conf Config) (ret Server, err error) {
 		log.Info("S3 archives are disabled")
 	} else {
 		log.Info("S3 archives are enabled")
+	}
+
+	if conf.FlushFile != "" {
+		localFilePlugin := &localfilep.Plugin{
+			FilePath: conf.FlushFile,
+			Logger:   log,
+		}
+		ret.registerPlugin(localFilePlugin)
+		log.Info(fmt.Sprintf("Local file logging to %s", conf.FlushFile))
 	}
 
 	return

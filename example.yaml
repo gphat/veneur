@@ -40,3 +40,6 @@ aws_access_key_id: ""
 aws_secret_access_key: ""
 aws_region: ""
 aws_s3_bucket: ""
+
+# Include this if you want to archive data to a local file (which should then be rotated/cleaned)
+flush_file: "/dev/null"

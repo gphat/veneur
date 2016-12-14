@@ -9,6 +9,7 @@ type Config struct {
 	AwsSecretAccessKey  string    `yaml:"aws_secret_access_key"`
 	Debug               bool      `yaml:"debug"`
 	EnableProfiling     bool      `yaml:"enable_profiling"`
+	FlushFile           string    `yaml:"flush_file"`
 	FlushMaxPerBody     int       `yaml:"flush_max_per_body"`
 	ForwardAddress      string    `yaml:"forward_address"`
 	Hostname            string    `yaml:"hostname"`
