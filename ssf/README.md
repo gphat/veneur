@@ -29,6 +29,56 @@ We've got some novel ideas that we've put in to SSF. It might help to be familia
   * improve the context of counters and gauges, as they are part of a span
 * provide a format containing the superset of many backend's features
 
+# Structure
+
+As with \*StatsD libraries, users will never muck with the protobuf. This will be handled by SSF clients! There are two high level classes of client: Those that use traditional signgle metrics per packet and those that collect metrics into a span and emit each span.
+
+## Simple, A Metric
+
+This matches the style of most existing \*StatsD style clients. An implementation would translate a call like:
+
+```go
+client.Increment("foo.queries_executed", map[string]string{"table_name", "customers"})
+```
+
+into code that creates and emits the following by marshaling to protobuf and UDP transmission:
+
+```go
+counter := ssf.SSFSample{
+  Name:   "foo.queries_executed",
+  Metric: ssf.SSFSample_COUNTER,
+  Value:  1.0,
+  Tags: map[string]string{
+    "table_name": "customers",
+  },
+}
+span := ssf.SSFSpan{
+  Metrics: []*ssf.SSFSample{&counter},
+}
+```
+
+## Full, A Span With Metrics
+
+TODO
+
+```go
+counter := SSFSample{
+  Name:   "foo.queries_executed",
+  Metric: SSFSample_COUNTER,
+  Value:  1.0,
+  Tags: map[string]string{
+    "table_name": "customers",
+  },
+}
+span := SSFSpan{
+  TraceId:        1234,
+  Id:             1235,
+  StartTimestamp: 0,
+  EndTimestamp:   100,
+  Metrics:        []*SSFSample{&counter},
+}
+```
+
 # Inspiration
 
 We build on the shoulders of giants, and are proud to have used and been inspired by these marvelous tools:
