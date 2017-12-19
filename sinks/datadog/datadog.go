@@ -221,20 +221,21 @@ func (dd *DatadogMetricSink) flushPart(ctx context.Context, metricSlice []DDMetr
 	}, "flush", true, dd.log)
 }
 
-// DatadogTraceSpan represents a trace span as JSON for the
+// DatadogSpan represents a trace span as JSON for the
 // Datadog tracing API.
-type DatadogTraceSpan struct {
-	Duration int64             `json:"duration"`
-	Error    int64             `json:"error"`
-	Meta     map[string]string `json:"meta"`
-	Name     string            `json:"name"`
-	ParentID int64             `json:"parent_id,omitempty"`
-	Resource string            `json:"resource,omitempty"`
-	Service  string            `json:"service"`
-	SpanID   int64             `json:"span_id"`
-	Start    int64             `json:"start"`
-	TraceID  int64             `json:"trace_id"`
-	Type     string            `json:"type"`
+type DatadogSpan struct {
+	Duration int64              `json:"duration"`
+	Error    int64              `json:"error"`
+	Meta     map[string]string  `json:"meta"`
+	Metrics  map[string]float64 `json:"metrics"`
+	Name     string             `json:"name"`
+	ParentID int64              `json:"parent_id,omitempty"`
+	Resource string             `json:"resource,omitempty"`
+	Service  string             `json:"service"`
+	SpanID   int64              `json:"span_id"`
+	Start    int64              `json:"start"`
+	TraceID  int64              `json:"trace_id"`
+	Type     string             `json:"type"`
 }
 
 // DatadogSpanSink is a sink for sending spans to a Datadog trace agent.
@@ -339,8 +340,9 @@ func (dd *DatadogSpanSink) Flush() {
 	dd.mutex.Unlock()
 
 	serviceCount := make(map[string]int64)
-	var finalTraces []*DatadogTraceSpan
-	// Conver the SSFSpans into Datadog Spans
+	// Datadog wants the spans for each trace in an array, so make a map.
+	traceMap := map[int64][]*DatadogSpan{}
+	// Convert the SSFSpans into Datadog Spans
 	for _, span := range ssfSpans {
 		// -1 is a canonical way of passing in invalid info in Go
 		// so we should support that too
@@ -353,12 +355,19 @@ func (dd *DatadogSpanSink) Flush() {
 		}
 
 		resource := span.Tags[DatadogResourceKey]
-		name := span.Name
+		if resource == "" {
+			resource = "unknown"
+		}
 
 		tags := map[string]string{}
 		// Get the span's existing tags
 		for k, v := range span.Tags {
 			tags[k] = v
+		}
+
+		name := span.Name
+		if name == "" {
+			name = "unknown"
 		}
 
 		delete(tags, DatadogResourceKey)
@@ -368,7 +377,7 @@ func (dd *DatadogSpanSink) Flush() {
 			errorCode = 2
 		}
 
-		ddspan := &DatadogTraceSpan{
+		ddspan := &DatadogSpan{
 			TraceID:  span.TraceId,
 			SpanID:   span.Id,
 			ParentID: parentID,
@@ -378,12 +387,22 @@ func (dd *DatadogSpanSink) Flush() {
 			Start:    span.StartTimestamp,
 			Duration: span.EndTimestamp - span.StartTimestamp,
 			// TODO don't hardcode
-			Type:  "http",
+			Type:  "web",
 			Error: errorCode,
 			Meta:  tags,
 		}
 		serviceCount[span.Service]++
-		finalTraces = append(finalTraces, ddspan)
+		if _, ok := traceMap[span.TraceId]; !ok {
+			traceMap[span.TraceId] = []*DatadogSpan{}
+		}
+		traceMap[span.TraceId] = append(traceMap[span.TraceId], ddspan)
+	}
+	// Smush the spans into a two-dimensionall array now that they are grouped by trace id.
+	finalTraces := make([][]*DatadogSpan, len(traceMap))
+	idx := 0
+	for _, val := range traceMap {
+		finalTraces[idx] = val
+		idx++
 	}
 
 	if len(finalTraces) != 0 {
