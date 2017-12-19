@@ -24,7 +24,7 @@ var tracer = trace.GlobalTracer
 // this function - probably a static string for each callsite
 // you can disable compression with compress=false for endpoints that don't
 // support it
-func PostHelper(ctx context.Context, httpClient *http.Client, stats *statsd.Client, tc *trace.Client, endpoint string, bodyObject interface{}, action string, compress bool, log *logrus.Logger) error {
+func PostHelper(ctx context.Context, httpClient *http.Client, stats *statsd.Client, tc *trace.Client, method string, endpoint string, bodyObject interface{}, action string, compress bool, log *logrus.Logger) error {
 	span, _ := trace.StartSpanFromContext(ctx, "")
 	span.SetTag("action", action)
 	defer span.ClientFinish(tc)
@@ -64,7 +64,7 @@ func PostHelper(ctx context.Context, httpClient *http.Client, stats *statsd.Clie
 	bodyLength := bodyBuffer.Len()
 	stats.Histogram(action+".content_length_bytes", float64(bodyLength), nil, 1.0)
 
-	req, err := http.NewRequest(http.MethodPost, endpoint, &bodyBuffer)
+	req, err := http.NewRequest(method, endpoint, &bodyBuffer)
 
 	if err != nil {
 		stats.Count(action+".error_total", 1, []string{"cause:construct"}, 1.0)

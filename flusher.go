@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/stripe/veneur/http"
+	vhttp "github.com/stripe/veneur/http"
 	"github.com/stripe/veneur/samplers"
 	"github.com/stripe/veneur/sinks"
 	"github.com/stripe/veneur/trace"
@@ -360,7 +361,7 @@ func (s *Server) flushForward(ctx context.Context, wms []WorkerMetrics) {
 
 	// the error has already been logged (if there was one), so we only care
 	// about the success case
-	if http.PostHelper(span.Attach(ctx), s.HTTPClient, s.Statsd, s.TraceClient, endpoint, jsonMetrics, "forward", true, log) == nil {
+	if vhttp.PostHelper(span.Attach(ctx), s.HTTPClient, s.Statsd, s.TraceClient, http.MethodPost, endpoint, jsonMetrics, "forward", true, log) == nil {
 		log.WithField("metrics", len(jsonMetrics)).Info("Completed forward to upstream Veneur")
 	}
 }

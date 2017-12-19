@@ -311,7 +311,7 @@ func (p *Proxy) ProxyTraces(ctx context.Context, traces []DatadogTraceSpan) {
 			// this endpoint is not documented to take an array... but it does
 			// another curious constraint of this endpoint is that it does not
 			// support "Content-Encoding: deflate"
-			err = vhttp.PostHelper(span.Attach(ctx), p.HTTPClient, p.Statsd, p.traceClient, endpoint, batch, "flush_traces", false, log)
+			err = vhttp.PostHelper(span.Attach(ctx), p.HTTPClient, p.Statsd, p.traceClient, http.MethodPost, endpoint, batch, "flush_traces", false, log)
 
 			if err == nil {
 				log.WithFields(logrus.Fields{
@@ -376,7 +376,7 @@ func (p *Proxy) doPost(wg *sync.WaitGroup, destination string, batch []samplers.
 		return
 	}
 
-	err = vhttp.PostHelper(context.TODO(), p.HTTPClient, p.Statsd, p.traceClient, endpoint, batch, "forward", true, log)
+	err = vhttp.PostHelper(context.TODO(), p.HTTPClient, p.Statsd, p.traceClient, http.MethodPost, endpoint, batch, "forward", true, log)
 	if err == nil {
 		log.WithField("metrics", batchSize).Debug("Completed forward to upstream Veneur")
 	} else {
