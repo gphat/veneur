@@ -354,23 +354,22 @@ func (dd *DatadogSpanSink) Flush() {
 			parentID = 0
 		}
 
-		resource := span.Tags[DatadogResourceKey]
-		if resource == "" {
-			resource = "unknown"
-		}
-
 		tags := map[string]string{}
 		// Get the span's existing tags
 		for k, v := range span.Tags {
 			tags[k] = v
 		}
 
+		resource := span.Tags[DatadogResourceKey]
+		if resource == "" {
+			resource = "unknown"
+		}
+		delete(tags, DatadogResourceKey)
+
 		name := span.Name
 		if name == "" {
 			name = "unknown"
 		}
-
-		delete(tags, DatadogResourceKey)
 
 		var errorCode int64
 		if span.Error {
