@@ -221,9 +221,9 @@ func (dd *DatadogMetricSink) flushPart(ctx context.Context, metricSlice []DDMetr
 	}, "flush", true, dd.log)
 }
 
-// DatadogSpan represents a trace span as JSON for the
+// DatadogTraceSpan represents a trace span as JSON for the
 // Datadog tracing API.
-type DatadogSpan struct {
+type DatadogTraceSpan struct {
 	Duration int64              `json:"duration"`
 	Error    int64              `json:"error"`
 	Meta     map[string]string  `json:"meta"`
@@ -341,7 +341,7 @@ func (dd *DatadogSpanSink) Flush() {
 
 	serviceCount := make(map[string]int64)
 	// Datadog wants the spans for each trace in an array, so make a map.
-	traceMap := map[int64][]*DatadogSpan{}
+	traceMap := map[int64][]*DatadogTraceSpan{}
 	// Convert the SSFSpans into Datadog Spans
 	for _, span := range ssfSpans {
 		// -1 is a canonical way of passing in invalid info in Go
@@ -377,7 +377,7 @@ func (dd *DatadogSpanSink) Flush() {
 			errorCode = 2
 		}
 
-		ddspan := &DatadogSpan{
+		ddspan := &DatadogTraceSpan{
 			TraceID:  span.TraceId,
 			SpanID:   span.Id,
 			ParentID: parentID,
@@ -393,12 +393,12 @@ func (dd *DatadogSpanSink) Flush() {
 		}
 		serviceCount[span.Service]++
 		if _, ok := traceMap[span.TraceId]; !ok {
-			traceMap[span.TraceId] = []*DatadogSpan{}
+			traceMap[span.TraceId] = []*DatadogTraceSpan{}
 		}
 		traceMap[span.TraceId] = append(traceMap[span.TraceId], ddspan)
 	}
-	// Smush the spans into a two-dimensionall array now that they are grouped by trace id.
-	finalTraces := make([][]*DatadogSpan, len(traceMap))
+	// Smush the spans into a two-dimensional array now that they are grouped by trace id.
+	finalTraces := make([][]*DatadogTraceSpan, len(traceMap))
 	idx := 0
 	for _, val := range traceMap {
 		finalTraces[idx] = val
