@@ -41,6 +41,7 @@ import (
 	"github.com/stripe/veneur/sinks/lightstep"
 	"github.com/stripe/veneur/sinks/metrics"
 	"github.com/stripe/veneur/sinks/signalfx"
+	"github.com/stripe/veneur/sinks/xray"
 	"github.com/stripe/veneur/ssf"
 	"github.com/stripe/veneur/trace"
 )
@@ -352,7 +353,17 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 			}
 
 			ret.spanSinks = append(ret.spanSinks, ddSink)
-			logger.Info("Configured Datadog trace sink")
+			logger.Info("Configured Datadog span sink")
+		}
+
+		if conf.TraceXrayAddress != "" {
+			xraySink, err := xray.NewXRaySpanSink(conf.TraceXrayAddress, ret.Statsd, ret.TagsAsMap, log)
+			if err != nil {
+				return ret, err
+			}
+			ret.spanSinks = append(ret.spanSinks, xraySink)
+
+			logger.Info("Configured X-Ray span sink")
 		}
 
 		// configure Lightstep as a Span Sink
@@ -375,7 +386,7 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 			}
 			ret.spanSinks = append(ret.spanSinks, lsSink)
 
-			logger.Info("Configured Lightstep trace sink")
+			logger.Info("Configured Lightstep span sink")
 		}
 	}
 
