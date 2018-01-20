@@ -196,7 +196,6 @@ datadog_trace_api_address: ""
 # The size of the ring buffer used for retaining spans during a flush interval.
 datadog_span_buffer_size: 16384
 
-
 # == SignalFx ==
 # SignalFx can be a sink for metrics and events.
 
@@ -227,6 +226,13 @@ signalfx_per_tag_api_keys:
   # key "definitely_no_farts"
   - name: "asf"
     api_key: "definitely_no_farts"
+
+# == X-Ray ==
+# X-Ray can be a sink for trace spans.
+
+# If present, X-Ray will be enabled as a tracing sink
+trace_xray_address: "localhost:2000"
+
 
 # == LightStep ==
 # LightStep can be a sink for trace spans.
