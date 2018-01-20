@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/sirupsen/logrus"
@@ -97,8 +98,8 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		ID:          fmt.Sprintf("%016x", ssfSpan.Id),
 		TraceID:     fmt.Sprintf("1-%08x-%024x", ssfSpan.StartTimestamp/1e9, ssfSpan.TraceId),
 		Name:        ssfSpan.Service,
-		StartTime:   float64(ssfSpan.StartTimestamp / 1e9),
-		EndTime:     float64(ssfSpan.EndTimestamp / 1e9),
+		StartTime:   float64(float64(ssfSpan.StartTimestamp) / float64(time.Second)),
+		EndTime:     float64(float64(ssfSpan.EndTimestamp) / float64(time.Second)),
 		Annotations: annos,
 	}
 	if ssfSpan.ParentId != 0 {
