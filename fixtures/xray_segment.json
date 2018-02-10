@@ -1,0 +1,2 @@
+{"format": "json", "version": 1}
+{"name":"farts-srv","id":"0000000000000002","trace_id":"1-5a7f1b99-000000000000000000000001","parent_id":"0000000000000001","start_time":1518279577,"end_time":1518279579,"type":"subsegment","annotations":{"foo":"bar"}}

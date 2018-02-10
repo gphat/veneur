@@ -108,19 +108,21 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 	}
 	b, err := json.Marshal(segment)
 	if err != nil {
-		// TODO Uhm, squawk?
+		x.log.WithError(err).Error("Error marshaling segment")
+		return err
 	}
 	// Send the segment
 	_, err = x.conn.Write(append(segmentHeader, b...))
 	if err != nil {
-		// TODO Uh, squawk?
+		x.log.WithError(err).Error("Error sending segment")
+		return err
 	}
 
 	atomic.AddInt64(&x.spansHandled, 1)
 	return nil
 }
 
-// Flush doesn't need to do anything to us, so we emit metrics
+// Flush doesn't need to do anything, so we emit metrics
 // instead.
 func (x *XRaySpanSink) Flush() {
 
