@@ -7,6 +7,7 @@ import (
 	"hash/crc32"
 	"math"
 	"net"
+	"regexp"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -33,6 +34,8 @@ type XRaySegment struct {
 	StartTime   float64           `json:"start_time"`
 	EndTime     float64           `json:"end_time"`
 	SegmentType string            `json:"type,omitempty"`
+	Namespace   string            `json:"namespace"`
+	Error       bool              `json:"error"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
@@ -45,6 +48,7 @@ type XRaySpanSink struct {
 	commonTags      map[string]string
 	log             *logrus.Logger
 	spansHandled    int64
+	nameRegex       *regexp.Regexp
 }
 
 var _ sinks.SpanSink = &XRaySpanSink{}
@@ -66,11 +70,18 @@ func NewXRaySpanSink(daemonAddr string, sampleRatePercentage int, commonTags map
 	// with the output of our hashing algorithm.
 	sampleThreshold = uint32(sampleRatePercentage * math.MaxUint32 / 100)
 
+	// Build a regex for cleaning names
+	reg, err := regexp.Compile("[^a-zA-Z0-9_\\.\\:\\/\\%\\&#=+\\-\\@\\s\\\\]+")
+	if err != nil {
+		return nil, err
+	}
+
 	return &XRaySpanSink{
 		daemonAddr:      daemonAddr,
 		sampleThreshold: sampleThreshold,
 		commonTags:      commonTags,
 		log:             log,
+		nameRegex:       reg,
 	}, nil
 }
 
@@ -114,13 +125,21 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		annos[k] = v
 	}
 
+	name := fmt.Sprintf("%s:%s", ssfSpan.Service, ssfSpan.Name)
+	name = string(x.nameRegex.ReplaceAll([]byte(name), []byte("_")))
+	if len(name) > 200 {
+		name = name[:200]
+	}
+
 	segment := XRaySegment{
 		ID:          fmt.Sprintf("%016x", ssfSpan.Id),
 		TraceID:     fmt.Sprintf("1-%08x-%024x", ssfSpan.StartTimestamp/1e9, ssfSpan.TraceId),
-		Name:        ssfSpan.Service,
+		Name:        name,
 		StartTime:   float64(float64(ssfSpan.StartTimestamp) / float64(time.Second)),
 		EndTime:     float64(float64(ssfSpan.EndTimestamp) / float64(time.Second)),
 		Annotations: annos,
+		Namespace:   "remote",
+		Error:       ssfSpan.Error,
 	}
 	if ssfSpan.ParentId != 0 {
 		segment.ParentID = fmt.Sprintf("%016x", ssfSpan.ParentId)
