@@ -2,8 +2,12 @@ package xray
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"hash/crc32"
+	"math"
 	"net"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -34,27 +38,39 @@ type XRaySegment struct {
 
 // XRaySpanSink is a sink for spans to be sent to AWS X-Ray.
 type XRaySpanSink struct {
-	daemonAddr   string
-	traceClient  *trace.Client
-	conn         *net.UDPConn
-	commonTags   map[string]string
-	log          *logrus.Logger
-	spansHandled int64
+	daemonAddr      string
+	traceClient     *trace.Client
+	conn            *net.UDPConn
+	sampleThreshold uint32
+	commonTags      map[string]string
+	log             *logrus.Logger
+	spansHandled    int64
 }
 
 var _ sinks.SpanSink = &XRaySpanSink{}
 
 // NewXRaySpanSink creates a new instance of a XRaySpanSink.
-func NewXRaySpanSink(daemonAddr string, commonTags map[string]string, log *logrus.Logger) (*XRaySpanSink, error) {
+func NewXRaySpanSink(daemonAddr string, sampleRatePercentage int, commonTags map[string]string, log *logrus.Logger) (*XRaySpanSink, error) {
 
 	log.WithFields(logrus.Fields{
 		"Address": daemonAddr,
 	}).Info("Creating X-Ray client")
 
+	var sampleThreshold uint32
+	if sampleRatePercentage <= 0 || sampleRatePercentage > 100 {
+		return nil, errors.New("Span sample rate percentage must be greater than 0%% and less than or equal to 100%%")
+	}
+
+	// Set the sample threshold to (sample rate) * (maximum value of uint32), so that
+	// we can store it as a uint32 instead of a float64 and compare apples-to-apples
+	// with the output of our hashing algorithm.
+	sampleThreshold = uint32(sampleRatePercentage * math.MaxUint32 / 100)
+
 	return &XRaySpanSink{
-		daemonAddr: daemonAddr,
-		commonTags: commonTags,
-		log:        log,
+		daemonAddr:      daemonAddr,
+		sampleThreshold: sampleThreshold,
+		commonTags:      commonTags,
+		log:             log,
 	}, nil
 }
 
@@ -85,6 +101,12 @@ func (x *XRaySpanSink) Name() string {
 func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 	if err := protocol.ValidateTrace(ssfSpan); err != nil {
 		return err
+	}
+
+	sampleCheckValue := []byte(strconv.FormatInt(ssfSpan.TraceId, 10))
+	hashKey := crc32.ChecksumIEEE(sampleCheckValue)
+	if hashKey > x.sampleThreshold {
+		return nil
 	}
 
 	annos := map[string]string{}

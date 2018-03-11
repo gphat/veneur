@@ -276,7 +276,14 @@ signalfx_metric_tag_prefix_drops:
 # X-Ray can be a sink for trace spans.
 
 # If present, X-Ray will be enabled as a tracing sink
-trace_xray_address: "localhost:2000"
+xray_address: "localhost:2000"
+
+# Sample rate in percent (as an integer)
+# This should ideally be a floating point number, but at the time this was
+# written, gojson interpreted whole-number floats in yaml as integers.
+# The sink will hash the trace id of the span such that all Veneur instances
+# will sample the same segments by using the trace id as input for a checksum.
+xray_sample_percentage: 100
 
 # == LightStep ==
 # LightStep can be a sink for trace spans.

@@ -396,8 +396,11 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 			logger.Info("Configured Datadog span sink")
 		}
 
-		if conf.TraceXrayAddress != "" {
-			xraySink, err := xray.NewXRaySpanSink(conf.TraceXrayAddress, ret.TagsAsMap, log)
+		if conf.XrayAddress != "" {
+			if conf.XraySamplePercentage == 0 {
+				log.Warn("XRay sample percentage is 0, no segments will be sent.")
+			}
+			xraySink, err := xray.NewXRaySpanSink(conf.XrayAddress, conf.XraySamplePercentage, ret.TagsAsMap, log)
 			if err != nil {
 				return ret, err
 			}
