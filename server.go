@@ -397,7 +397,7 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 		}
 
 		if conf.TraceXrayAddress != "" {
-			xraySink, err := xray.NewXRaySpanSink(conf.TraceXrayAddress, ret.Statsd, ret.TagsAsMap, log)
+			xraySink, err := xray.NewXRaySpanSink(conf.TraceXrayAddress, ret.TagsAsMap, log)
 			if err != nil {
 				return ret, err
 			}

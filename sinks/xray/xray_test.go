@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stripe/veneur/ssf"
@@ -17,9 +16,8 @@ import (
 
 func TestConstructor(t *testing.T) {
 	logger := logrus.StandardLogger()
-	stats, _ := statsd.NewBuffered("localhost:1235", 1024)
 
-	sink, err := NewXRaySpanSink("127.0.0.1:2000", stats, map[string]string{"foo": "bar"}, logger)
+	sink, err := NewXRaySpanSink("127.0.0.1:2000", map[string]string{"foo": "bar"}, logger)
 	assert.NoError(t, err)
 	assert.Equal(t, "xray", sink.Name())
 	assert.Equal(t, "bar", sink.commonTags["foo"])
@@ -56,9 +54,7 @@ func TestIngestSpans(t *testing.T) {
 		}
 	}()
 
-	stats, _ := statsd.NewBuffered("localhost:1235", 1024)
-
-	sink, err := NewXRaySpanSink(fmt.Sprintf("127.0.0.1:%d", port), stats, map[string]string{"foo": "bar"}, logrus.New())
+	sink, err := NewXRaySpanSink(fmt.Sprintf("127.0.0.1:%d", port), map[string]string{"foo": "bar"}, logrus.New())
 	assert.NoError(t, err)
 	err = sink.Start(nil)
 	assert.NoError(t, err)
