@@ -7,12 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/sirupsen/logrus"
 	"github.com/stripe/veneur/protocol"
 	"github.com/stripe/veneur/sinks"
 	"github.com/stripe/veneur/ssf"
 	"github.com/stripe/veneur/trace"
+	"github.com/stripe/veneur/trace/metrics"
 )
 
 const subsegmentType = "subsegment"
@@ -35,7 +35,6 @@ type XRaySegment struct {
 // XRaySpanSink is a sink for spans to be sent to AWS X-Ray.
 type XRaySpanSink struct {
 	daemonAddr   string
-	stats        *statsd.Client
 	traceClient  *trace.Client
 	conn         *net.UDPConn
 	commonTags   map[string]string
@@ -46,7 +45,7 @@ type XRaySpanSink struct {
 var _ sinks.SpanSink = &XRaySpanSink{}
 
 // NewXRaySpanSink creates a new instance of a XRaySpanSink.
-func NewXRaySpanSink(daemonAddr string, stats *statsd.Client, commonTags map[string]string, log *logrus.Logger) (*XRaySpanSink, error) {
+func NewXRaySpanSink(daemonAddr string, commonTags map[string]string, log *logrus.Logger) (*XRaySpanSink, error) {
 
 	log.WithFields(logrus.Fields{
 		"Address": daemonAddr,
@@ -54,7 +53,6 @@ func NewXRaySpanSink(daemonAddr string, stats *statsd.Client, commonTags map[str
 
 	return &XRaySpanSink{
 		daemonAddr: daemonAddr,
-		stats:      stats,
 		commonTags: commonTags,
 		log:        log,
 	}, nil
@@ -125,8 +123,10 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 // Flush doesn't need to do anything, so we emit metrics
 // instead.
 func (x *XRaySpanSink) Flush() {
+	metrics.ReportOne(x.traceClient,
+		ssf.Count(sinks.MetricKeyTotalSpansFlushed, float32(atomic.LoadInt64(&x.spansHandled)), map[string]string{"sink": x.Name()}),
+	)
 
-	x.stats.Count(sinks.MetricKeyTotalSpansFlushed, atomic.LoadInt64(&x.spansHandled), []string{fmt.Sprintf("sink:%s", x.Name())}, 1)
 	x.log.WithField("total_spans", atomic.LoadInt64(&x.spansHandled)).Debug("Checkpointing flushed spans for X-Ray")
 	atomic.SwapInt64(&x.spansHandled, 0)
 }
