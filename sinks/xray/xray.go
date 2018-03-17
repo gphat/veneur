@@ -127,8 +127,7 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		annos[k] = v
 	}
 
-	name := fmt.Sprintf("%s:%s", ssfSpan.Service, ssfSpan.Name)
-	name = string(x.nameRegex.ReplaceAll([]byte(name), []byte("_")))
+	name := string(x.nameRegex.ReplaceAll([]byte(ssfSpan.Service), []byte("_")))
 	if len(name) > 200 {
 		name = name[:200]
 	}
