@@ -168,6 +168,6 @@ func (x *XRaySpanSink) Flush() {
 		ssf.Count(sinks.MetricKeyTotalSpansFlushed, float32(atomic.LoadInt64(&x.spansHandled)), map[string]string{"sink": x.Name()}),
 	)
 
-	x.log.WithField("total_spans", atomic.LoadInt64(&x.spansHandled)).Debug("Checkpointing flushed spans for X-Ray")
+	x.log.WithField("total_spans", atomic.LoadInt64(&x.spansHandled)).Info("Checkpointing flushed spans for X-Ray")
 	atomic.SwapInt64(&x.spansHandled, 0)
 }
