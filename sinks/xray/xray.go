@@ -47,6 +47,7 @@ type XRaySpanSink struct {
 	sampleThreshold uint32
 	commonTags      map[string]string
 	log             *logrus.Logger
+	spansDropped    int64
 	spansHandled    int64
 	nameRegex       *regexp.Regexp
 }
@@ -117,6 +118,7 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 	sampleCheckValue := []byte(strconv.FormatInt(ssfSpan.TraceId, 10))
 	hashKey := crc32.ChecksumIEEE(sampleCheckValue)
 	if hashKey > x.sampleThreshold {
+		atomic.AddInt64(&x.spansDropped, 1)
 		return nil
 	}
 
@@ -164,10 +166,12 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 // Flush doesn't need to do anything, so we emit metrics
 // instead.
 func (x *XRaySpanSink) Flush() {
-	metrics.ReportOne(x.traceClient,
+	metrics.ReportBatch(x.traceClient, []*ssf.SSFSample{
 		ssf.Count(sinks.MetricKeyTotalSpansFlushed, float32(atomic.LoadInt64(&x.spansHandled)), map[string]string{"sink": x.Name()}),
-	)
+		ssf.Count(sinks.MetricKeyTotalSpansDropped, float32(atomic.LoadInt64(&x.spansDropped)), map[string]string{"sink": x.Name()}),
+	})
+	atomic.SwapInt64(&x.spansHandled, 0)
+	atomic.SwapInt64(&x.spansDropped, 0)
 
 	x.log.WithField("total_spans", atomic.LoadInt64(&x.spansHandled)).Info("Checkpointing flushed spans for X-Ray")
-	atomic.SwapInt64(&x.spansHandled, 0)
 }
