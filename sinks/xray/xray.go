@@ -24,6 +24,23 @@ const subsegmentType = "subsegment"
 
 var segmentHeader = []byte(`{"format": "json", "version": 1}` + "\n")
 
+type XRaySegmentHTTPRequest struct {
+	Method        string `json:"method,omitempty"`
+	ClientIP      string `json:"client_ip,omitempty"`
+	URL           string `json:"url,omitempty"`
+	UserAgent     string `json:"user_agent,omitempty"`
+	XForwardedFor string `json:"x_forwarded_for,omitempty"`
+}
+
+type XRaySegmentHTTPResponse struct {
+	Status int `json:"status,omitempty"`
+}
+
+type XRaySegmentHTTP struct {
+	Request  XRaySegmentHTTPRequest  `json:"request,omitempty"`
+	Response XRaySegmentHTTPResponse `json:"response,omitempty"`
+}
+
 // XRaySegment is a trace segment for X-Ray as defined by:
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
 type XRaySegment struct {
@@ -37,6 +54,8 @@ type XRaySegment struct {
 	Namespace   string            `json:"namespace"`
 	Error       bool              `json:"error"`
 	Annotations map[string]string `json:"annotations,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	HTTP        XRaySegmentHTTP   `json:"http,omitempty"`
 }
 
 // XRaySpanSink is a sink for spans to be sent to AWS X-Ray.
