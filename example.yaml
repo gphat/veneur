@@ -227,7 +227,7 @@ signalfx_per_tag_api_keys:
   - name: "asf"
     api_key: "definitely_no_farts"
 
-# == X-Ray ==
+# == AWS X-Ray ==
 # X-Ray can be a sink for trace spans.
 
 # If present, X-Ray will be enabled as a tracing sink
