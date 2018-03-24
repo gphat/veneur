@@ -63,7 +63,7 @@ func NewXRaySpanSink(daemonAddr string, sampleRatePercentage int, commonTags map
 
 	var sampleThreshold uint32
 	if sampleRatePercentage <= 0 || sampleRatePercentage > 100 {
-		return nil, errors.New("Span sample rate percentage must be greater than 0%% and less than or equal to 100%%")
+		return nil, errors.New("Span sample rate percentage must be greater than 0% and less than or equal to 100%")
 	}
 
 	// Set the sample threshold to (sample rate) * (maximum value of uint32), so that
@@ -71,7 +71,8 @@ func NewXRaySpanSink(daemonAddr string, sampleRatePercentage int, commonTags map
 	// with the output of our hashing algorithm.
 	sampleThreshold = uint32(sampleRatePercentage * math.MaxUint32 / 100)
 
-	// Build a regex for cleaning names
+	// Build a regex for cleaning names based on valid characters from:
+	// https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html#api-segmentdocuments-fields
 	reg, err := regexp.Compile("[^a-zA-Z0-9_\\.\\:\\/\\%\\&#=+\\-\\@\\s\\\\]+")
 	if err != nil {
 		return nil, err
@@ -132,8 +133,12 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		name = name[:200]
 	}
 
+	// The fields below are defined here:
+	// https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html#api-segmentdocuments-fields
 	segment := XRaySegment{
-		ID:          fmt.Sprintf("%016x", ssfSpan.Id),
+		// ID is a 64-bit hex
+		ID: fmt.Sprintf("%016x", ssfSpan.Id),
+		// Trace ID is version-startTimeUnixAs8CharHex-traceIdAs24CharHex
 		TraceID:     fmt.Sprintf("1-%08x-%024x", ssfSpan.StartTimestamp/1e9, ssfSpan.TraceId),
 		Name:        name,
 		StartTime:   float64(float64(ssfSpan.StartTimestamp) / float64(time.Second)),

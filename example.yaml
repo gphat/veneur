@@ -272,7 +272,7 @@ signalfx_metric_name_prefix_drops:
 signalfx_metric_tag_prefix_drops:
   - ""
 
-# == X-Ray ==
+# == AWS X-Ray ==
 # X-Ray can be a sink for trace spans.
 
 # If present, X-Ray will be enabled as a tracing sink

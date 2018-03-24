@@ -399,14 +399,15 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 		if conf.XrayAddress != "" {
 			if conf.XraySamplePercentage == 0 {
 				log.Warn("XRay sample percentage is 0, no segments will be sent.")
-			}
-			xraySink, err := xray.NewXRaySpanSink(conf.XrayAddress, conf.XraySamplePercentage, ret.TagsAsMap, log)
-			if err != nil {
-				return ret, err
-			}
-			ret.spanSinks = append(ret.spanSinks, xraySink)
+			} else {
+				xraySink, err := xray.NewXRaySpanSink(conf.XrayAddress, conf.XraySamplePercentage, ret.TagsAsMap, log)
+				if err != nil {
+					return ret, err
+				}
+				ret.spanSinks = append(ret.spanSinks, xraySink)
 
-			logger.Info("Configured X-Ray span sink")
+				logger.Info("Configured X-Ray span sink")
+			}
 		}
 
 		// configure Lightstep as a Span Sink
