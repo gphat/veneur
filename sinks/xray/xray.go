@@ -165,6 +165,14 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		Annotations: annos,
 		Namespace:   "remote",
 		Error:       ssfSpan.Error,
+		// Because X-Ray doesn't offer another way to get this data in, we pretend
+		// it's HTTP for now. It's likely that as X-Ray and/or Veneur develop this
+		// will change.
+		HTTP: XRaySegmentHTTP{
+			Request: XRaySegmentHTTPRequest{
+				URL: fmt.Sprintf("%s:%s", ssfSpan.Service, ssfSpan.Name),
+			},
+		},
 	}
 	if ssfSpan.ParentId != 0 {
 		segment.ParentID = fmt.Sprintf("%016x", ssfSpan.ParentId)
