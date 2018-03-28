@@ -24,6 +24,8 @@ const subsegmentType = "subsegment"
 
 var segmentHeader = []byte(`{"format": "json", "version": 1}` + "\n")
 
+const XRayTagNameClientIP = "xray_client_ip"
+
 type XRaySegmentHTTPRequest struct {
 	Method        string `json:"method,omitempty"`
 	ClientIP      string `json:"client_ip,omitempty"`
@@ -146,6 +148,11 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 	for k, v := range x.commonTags {
 		annos[k] = v
 	}
+	for k, v := range ssfSpan.Tags {
+		if k != XRayTagNameClientIP {
+			annos[k] = v
+		}
+	}
 
 	name := string(x.nameRegex.ReplaceAll([]byte(ssfSpan.Service), []byte("_")))
 	if len(name) > 200 {
@@ -170,8 +177,13 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		// will change.
 		HTTP: XRaySegmentHTTP{
 			Request: XRaySegmentHTTPRequest{
-				URL: fmt.Sprintf("%s:%s", ssfSpan.Service, ssfSpan.Name),
+				URL:      fmt.Sprintf("%s:%s", ssfSpan.Service, ssfSpan.Name),
+				ClientIP: ssfSpan.Tags[XRayTagNameClientIP],
+				// Method:   "GET",
 			},
+			// Response: XRaySegmentHTTPResponse{
+			// 	Status: 200,
+			// },
 		},
 	}
 	if ssfSpan.ParentId != 0 {
@@ -197,12 +209,12 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 // Flush doesn't need to do anything, so we emit metrics
 // instead.
 func (x *XRaySpanSink) Flush() {
+	x.log.WithFields(logrus.Fields{
+		"flushed_spans": atomic.LoadInt64(&x.spansHandled),
+		"dropped_spans": atomic.LoadInt64(&x.spansDropped),
+	}).Info("Checkpointing flushed spans for X-Ray")
 	metrics.ReportBatch(x.traceClient, []*ssf.SSFSample{
-		ssf.Count(sinks.MetricKeyTotalSpansFlushed, float32(atomic.LoadInt64(&x.spansHandled)), map[string]string{"sink": x.Name()}),
-		ssf.Count(sinks.MetricKeyTotalSpansDropped, float32(atomic.LoadInt64(&x.spansDropped)), map[string]string{"sink": x.Name()}),
+		ssf.Count(sinks.MetricKeyTotalSpansFlushed, float32(atomic.SwapInt64(&x.spansHandled, 0)), map[string]string{"sink": x.Name()}),
+		ssf.Count(sinks.MetricKeyTotalSpansDropped, float32(atomic.SwapInt64(&x.spansDropped, 0)), map[string]string{"sink": x.Name()}),
 	})
-	atomic.SwapInt64(&x.spansHandled, 0)
-	atomic.SwapInt64(&x.spansDropped, 0)
-
-	x.log.WithField("total_spans", atomic.LoadInt64(&x.spansHandled)).Info("Checkpointing flushed spans for X-Ray")
 }
