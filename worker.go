@@ -55,38 +55,60 @@ type WorkerMetrics struct {
 	// we do not want to key on the metric's Digest here, because those could
 	// collide, and then we'd have to implement a hashtable on top of go maps,
 	// which would be silly
-	counters   map[samplers.MetricKey]*samplers.Counter
-	gauges     map[samplers.MetricKey]*samplers.Gauge
-	histograms map[samplers.MetricKey]*samplers.Histo
-	sets       map[samplers.MetricKey]*samplers.Set
-	timers     map[samplers.MetricKey]*samplers.Histo
+	counters       map[samplers.MetricKey]*samplers.Counter
+	counterMutex   sync.RWMutex
+	gauges         map[samplers.MetricKey]*samplers.Gauge
+	gaugeMutex     sync.RWMutex
+	histograms     map[samplers.MetricKey]*samplers.Histo
+	histogramMutex sync.RWMutex
+	sets           map[samplers.MetricKey]*samplers.Set
+	setMutex       sync.RWMutex
+	timers         map[samplers.MetricKey]*samplers.Histo
+	timerMutex     sync.RWMutex
 
 	// this is for counters which are globally aggregated
-	globalCounters map[samplers.MetricKey]*samplers.Counter
+	globalCounters     map[samplers.MetricKey]*samplers.Counter
+	globalCounterMutex sync.RWMutex
 	// and gauges which are global
-	globalGauges map[samplers.MetricKey]*samplers.Gauge
+	globalGauges     map[samplers.MetricKey]*samplers.Gauge
+	globalGaugeMutex sync.RWMutex
 
 	// these are used for metrics that shouldn't be forwarded
-	localHistograms   map[samplers.MetricKey]*samplers.Histo
-	localSets         map[samplers.MetricKey]*samplers.Set
-	localTimers       map[samplers.MetricKey]*samplers.Histo
-	localStatusChecks map[samplers.MetricKey]*samplers.StatusCheck
+	localHistograms       map[samplers.MetricKey]*samplers.Histo
+	localHistogramMutex   sync.RWMutex
+	localSets             map[samplers.MetricKey]*samplers.Set
+	localSetMutex         sync.RWMutex
+	localTimers           map[samplers.MetricKey]*samplers.Histo
+	localTimerMutex       sync.RWMutex
+	localStatusChecks     map[samplers.MetricKey]*samplers.StatusCheck
+	localStatusCheckMutex sync.RWMutex
 }
 
 // NewWorkerMetrics initializes a WorkerMetrics struct
 func NewWorkerMetrics() WorkerMetrics {
 	return WorkerMetrics{
-		counters:          map[samplers.MetricKey]*samplers.Counter{},
-		globalCounters:    map[samplers.MetricKey]*samplers.Counter{},
-		globalGauges:      map[samplers.MetricKey]*samplers.Gauge{},
-		gauges:            map[samplers.MetricKey]*samplers.Gauge{},
-		histograms:        map[samplers.MetricKey]*samplers.Histo{},
-		sets:              map[samplers.MetricKey]*samplers.Set{},
-		timers:            map[samplers.MetricKey]*samplers.Histo{},
-		localHistograms:   map[samplers.MetricKey]*samplers.Histo{},
-		localSets:         map[samplers.MetricKey]*samplers.Set{},
-		localTimers:       map[samplers.MetricKey]*samplers.Histo{},
-		localStatusChecks: map[samplers.MetricKey]*samplers.StatusCheck{},
+		counters:              map[samplers.MetricKey]*samplers.Counter{},
+		counterMutex:          sync.RWMutex{},
+		globalCounters:        map[samplers.MetricKey]*samplers.Counter{},
+		globalCounterMutex:    sync.RWMutex{},
+		globalGauges:          map[samplers.MetricKey]*samplers.Gauge{},
+		globalGaugeMutex:      sync.RWMutex{},
+		gauges:                map[samplers.MetricKey]*samplers.Gauge{},
+		gaugeMutex:            sync.RWMutex{},
+		histograms:            map[samplers.MetricKey]*samplers.Histo{},
+		histogramMutex:        sync.RWMutex{},
+		sets:                  map[samplers.MetricKey]*samplers.Set{},
+		setMutex:              sync.RWMutex{},
+		timers:                map[samplers.MetricKey]*samplers.Histo{},
+		timerMutex:            sync.RWMutex{},
+		localHistograms:       map[samplers.MetricKey]*samplers.Histo{},
+		localHistogramMutex:   sync.RWMutex{},
+		localSets:             map[samplers.MetricKey]*samplers.Set{},
+		localSetMutex:         sync.RWMutex{},
+		localTimers:           map[samplers.MetricKey]*samplers.Histo{},
+		localTimerMutex:       sync.RWMutex{},
+		localStatusChecks:     map[samplers.MetricKey]*samplers.StatusCheck{},
+		localStatusCheckMutex: sync.RWMutex{},
 	}
 }
 
@@ -98,57 +120,112 @@ func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, Scope samplers.MetricScope
 	switch mk.Type {
 	case counterTypeName:
 		if Scope == samplers.GlobalOnly {
-			if _, present = wm.globalCounters[mk]; !present {
+			wm.globalCounterMutex.RLock()
+			_, present = wm.globalCounters[mk]
+			wm.globalCounterMutex.RUnlock()
+			if !present {
+				wm.globalCounterMutex.Lock()
 				wm.globalCounters[mk] = samplers.NewCounter(mk.Name, tags)
+				wm.globalCounterMutex.Unlock()
 			}
 		} else {
-			if _, present = wm.counters[mk]; !present {
+			wm.counterMutex.RLock()
+			_, present = wm.counters[mk]
+			wm.counterMutex.RUnlock()
+			if !present {
+				wm.counterMutex.Lock()
 				wm.counters[mk] = samplers.NewCounter(mk.Name, tags)
+				wm.counterMutex.Unlock()
 			}
 		}
 	case gaugeTypeName:
 		if Scope == samplers.GlobalOnly {
-			if _, present = wm.globalGauges[mk]; !present {
+			wm.globalGaugeMutex.RLock()
+			_, present = wm.globalGauges[mk]
+			wm.globalGaugeMutex.RUnlock()
+			if !present {
+				wm.globalGaugeMutex.Lock()
 				wm.globalGauges[mk] = samplers.NewGauge(mk.Name, tags)
+				wm.globalGaugeMutex.Unlock()
 			}
 		} else {
-			if _, present = wm.gauges[mk]; !present {
+			wm.gaugeMutex.RLock()
+			_, present = wm.gauges[mk]
+			wm.gaugeMutex.RUnlock()
+			if !present {
+				wm.gaugeMutex.Lock()
 				wm.gauges[mk] = samplers.NewGauge(mk.Name, tags)
+				wm.gaugeMutex.Unlock()
 			}
 		}
 	case histogramTypeName:
 		if Scope == samplers.LocalOnly {
-			if _, present = wm.localHistograms[mk]; !present {
+			wm.localHistogramMutex.RLock()
+			_, present = wm.localHistograms[mk]
+			wm.localHistogramMutex.RUnlock()
+			if !present {
+				wm.localHistogramMutex.Lock()
 				wm.localHistograms[mk] = samplers.NewHist(mk.Name, tags)
+				wm.localHistogramMutex.Unlock()
 			}
 		} else {
-			if _, present = wm.histograms[mk]; !present {
+			wm.histogramMutex.RLock()
+			_, present = wm.histograms[mk]
+			wm.histogramMutex.RUnlock()
+			if !present {
+				wm.histogramMutex.Lock()
 				wm.histograms[mk] = samplers.NewHist(mk.Name, tags)
+				wm.histogramMutex.Unlock()
 			}
 		}
 	case setTypeName:
 		if Scope == samplers.LocalOnly {
-			if _, present = wm.localSets[mk]; !present {
+			wm.localSetMutex.RLock()
+			_, present = wm.localSets[mk]
+			wm.localSetMutex.RUnlock()
+			if !present {
+				wm.localSetMutex.Lock()
 				wm.localSets[mk] = samplers.NewSet(mk.Name, tags)
+				wm.localSetMutex.Unlock()
 			}
 		} else {
-			if _, present = wm.sets[mk]; !present {
+			wm.setMutex.RLock()
+			_, present = wm.sets[mk]
+			wm.setMutex.RUnlock()
+			if !present {
+				wm.setMutex.Lock()
 				wm.sets[mk] = samplers.NewSet(mk.Name, tags)
+				wm.setMutex.Unlock()
 			}
 		}
 	case timerTypeName:
 		if Scope == samplers.LocalOnly {
-			if _, present = wm.localTimers[mk]; !present {
+			wm.localTimerMutex.RLock()
+			_, present = wm.localTimers[mk]
+			wm.localTimerMutex.RUnlock()
+			if !present {
+				wm.localTimerMutex.Lock()
 				wm.localTimers[mk] = samplers.NewHist(mk.Name, tags)
+				wm.localTimerMutex.Unlock()
 			}
 		} else {
-			if _, present = wm.timers[mk]; !present {
+			wm.timerMutex.RLock()
+			_, present = wm.timers[mk]
+			wm.timerMutex.RUnlock()
+			if !present {
+				wm.timerMutex.Lock()
 				wm.timers[mk] = samplers.NewHist(mk.Name, tags)
+				wm.timerMutex.Unlock()
 			}
 		}
 	case statusTypeName:
-		if _, present = wm.localStatusChecks[mk]; !present {
+		wm.localStatusCheckMutex.RLock()
+		_, present = wm.localStatusChecks[mk]
+		wm.localStatusCheckMutex.RUnlock()
+		if !present {
+			wm.localStatusCheckMutex.Lock()
 			wm.localStatusChecks[mk] = samplers.NewStatusCheck(mk.Name, tags)
+			wm.localStatusCheckMutex.Unlock()
 		}
 		// no need to raise errors on unknown types
 		// the caller will probably end up doing that themselves
@@ -256,8 +333,9 @@ func (w *Worker) Work() {
 // that allows us to fetch the Worker's processed count
 // in a non-racey way.
 func (w *Worker) MetricsProcessedCount() int64 {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
+	// w.mutex.Lock()
+	// defer w.mutex.Unlock()
+	// TKTK atomic
 	return w.processed
 }
 
@@ -265,45 +343,67 @@ func (w *Worker) MetricsProcessedCount() int64 {
 //
 // This is standalone to facilitate testing
 func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-	w.processed++
+	// w.mutex.Lock()
+	// defer w.mutex.Unlock()
+	w.processed++ // TKTK atomic
 	w.wm.Upsert(m.MetricKey, m.Scope, m.Tags)
 
 	switch m.Type {
 	case counterTypeName:
 		if m.Scope == samplers.GlobalOnly {
+			w.wm.globalCounterMutex.RLock()
 			w.wm.globalCounters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.globalCounterMutex.RUnlock()
 		} else {
+			w.wm.counterMutex.RLock()
 			w.wm.counters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.counterMutex.RUnlock()
 		}
 	case gaugeTypeName:
 		if m.Scope == samplers.GlobalOnly {
+			w.wm.globalGaugeMutex.RLock()
 			w.wm.globalGauges[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.globalGaugeMutex.RUnlock()
 		} else {
+			w.wm.gaugeMutex.RLock()
 			w.wm.gauges[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.gaugeMutex.RUnlock()
 		}
 	case histogramTypeName:
 		if m.Scope == samplers.LocalOnly {
+			w.wm.localHistogramMutex.RLock()
 			w.wm.localHistograms[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.localHistogramMutex.RUnlock()
 		} else {
+			w.wm.histogramMutex.RLock()
 			w.wm.histograms[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.histogramMutex.RUnlock()
 		}
 	case setTypeName:
 		if m.Scope == samplers.LocalOnly {
+			w.wm.localSetMutex.RLock()
 			w.wm.localSets[m.MetricKey].Sample(m.Value.(string), m.SampleRate)
+			w.wm.localSetMutex.RUnlock()
 		} else {
+			w.wm.setMutex.RLock()
 			w.wm.sets[m.MetricKey].Sample(m.Value.(string), m.SampleRate)
+			w.wm.setMutex.RUnlock()
 		}
 	case timerTypeName:
 		if m.Scope == samplers.LocalOnly {
+			w.wm.localTimerMutex.RLock()
 			w.wm.localTimers[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.localTimerMutex.RUnlock()
 		} else {
+			w.wm.timerMutex.RLock()
 			w.wm.timers[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+			w.wm.timerMutex.RUnlock()
 		}
 	case statusTypeName:
 		v := float64(m.Value.(ssf.SSFSample_Status))
+		w.wm.localStatusCheckMutex.RLock()
 		w.wm.localStatusChecks[m.MetricKey].Sample(v, m.SampleRate, m.Message, m.HostName)
+		w.wm.localStatusCheckMutex.RUnlock()
 	default:
 		log.WithField("type", m.Type).Error("Unknown metric type for processing")
 	}
@@ -311,8 +411,8 @@ func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
 
 // ImportMetric receives a metric from another veneur instance
 func (w *Worker) ImportMetric(other samplers.JSONMetric) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
+	// w.mutex.Lock()
+	// defer w.mutex.Unlock()
 
 	// we don't increment the processed metric counter here, it was already
 	// counted by the original veneur that sent this to us
@@ -326,22 +426,32 @@ func (w *Worker) ImportMetric(other samplers.JSONMetric) {
 
 	switch other.Type {
 	case counterTypeName:
+		w.wm.globalCounterMutex.RLock()
+		defer w.wm.globalCounterMutex.RUnlock()
 		if err := w.wm.globalCounters[other.MetricKey].Combine(other.Value); err != nil {
 			log.WithError(err).Error("Could not merge counters")
 		}
 	case gaugeTypeName:
+		w.wm.globalGaugeMutex.RLock()
+		defer w.wm.globalGaugeMutex.RUnlock()
 		if err := w.wm.globalGauges[other.MetricKey].Combine(other.Value); err != nil {
 			log.WithError(err).Error("Could not merge gauges")
 		}
 	case setTypeName:
+		w.wm.setMutex.RLock()
+		defer w.wm.setMutex.RUnlock()
 		if err := w.wm.sets[other.MetricKey].Combine(other.Value); err != nil {
 			log.WithError(err).Error("Could not merge sets")
 		}
 	case histogramTypeName:
+		w.wm.histogramMutex.RLock()
+		defer w.wm.histogramMutex.RUnlock()
 		if err := w.wm.histograms[other.MetricKey].Combine(other.Value); err != nil {
 			log.WithError(err).Error("Could not merge histograms")
 		}
 	case timerTypeName:
+		w.wm.timerMutex.RLock()
+		w.wm.timerMutex.RUnlock()
 		if err := w.wm.timers[other.MetricKey].Combine(other.Value); err != nil {
 			log.WithError(err).Error("Could not merge timers")
 		}
@@ -352,8 +462,8 @@ func (w *Worker) ImportMetric(other samplers.JSONMetric) {
 
 // ImportMetricGRPC receives a metric from another veneur instance over gRPC
 func (w *Worker) ImportMetricGRPC(other *metricpb.Metric) (err error) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
+	// w.mutex.Lock()
+	// defer w.mutex.Unlock()
 
 	key := samplers.NewMetricKeyFromMetric(other)
 
@@ -363,23 +473,34 @@ func (w *Worker) ImportMetricGRPC(other *metricpb.Metric) (err error) {
 	}
 
 	w.wm.Upsert(key, scope, other.Tags)
+	// TKTK atomic
 	w.imported++
 
 	switch v := other.GetValue().(type) {
 	case *metricpb.Metric_Counter:
+		w.wm.globalCounterMutex.RLock()
 		w.wm.globalCounters[key].Merge(v.Counter)
+		w.wm.globalCounterMutex.RUnlock()
 	case *metricpb.Metric_Gauge:
+		w.wm.globalGaugeMutex.RLock()
 		w.wm.globalGauges[key].Merge(v.Gauge)
+		w.wm.globalGaugeMutex.RUnlock()
 	case *metricpb.Metric_Set:
+		w.wm.setMutex.RLock()
+		defer w.wm.setMutex.RUnlock()
 		if merr := w.wm.sets[key].Merge(v.Set); merr != nil {
 			err = fmt.Errorf("could not merge a set: %v", err)
 		}
 	case *metricpb.Metric_Histogram:
 		switch other.Type {
 		case metricpb.Type_Histogram:
+			w.wm.histogramMutex.RLock()
 			w.wm.histograms[key].Merge(v.Histogram)
+			w.wm.histogramMutex.RUnlock()
 		case metricpb.Type_Timer:
+			w.wm.timerMutex.RLock()
 			w.wm.timers[key].Merge(v.Histogram)
+			w.wm.timerMutex.RUnlock()
 		}
 	case nil:
 		err = errors.New("Can't import a metric with a nil value")
@@ -405,15 +526,18 @@ func (w *Worker) Flush() WorkerMetrics {
 	// mutex is held! So we try and minimize it by copying the maps of values
 	// and assigning new ones.
 	wm := NewWorkerMetrics()
+	// Only lock for as long as we need to replace the worker metrics,
+	// TKTK atomic pointer swap?
 	w.mutex.Lock()
 	ret := w.wm
+	w.wm = wm
+	w.mutex.Unlock()
+
+	// TKTK Atomics
 	processed := w.processed
 	imported := w.imported
-
-	w.wm = wm
 	w.processed = 0
 	w.imported = 0
-	w.mutex.Unlock()
 
 	// Track how much time each worker takes to flush.
 	w.stats.Timing(
