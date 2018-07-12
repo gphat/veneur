@@ -35,11 +35,10 @@ type Worker struct {
 	QuitChan         chan struct{}
 	processed        int64
 	imported         int64
-	// mutex            *sync.Mutex
-	traceClient *trace.Client
-	logger      *logrus.Logger
-	wm          WorkerMetrics
-	stats       *statsd.Client
+	traceClient      *trace.Client
+	logger           *logrus.Logger
+	wm               WorkerMetrics
+	stats            *statsd.Client
 }
 
 // IngestUDP on a Worker feeds the metric into the worker's PacketChan.
