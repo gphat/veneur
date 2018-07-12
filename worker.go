@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/sirupsen/logrus"
@@ -34,11 +35,11 @@ type Worker struct {
 	QuitChan         chan struct{}
 	processed        int64
 	imported         int64
-	mutex            *sync.Mutex
-	traceClient      *trace.Client
-	logger           *logrus.Logger
-	wm               WorkerMetrics
-	stats            *statsd.Client
+	// mutex            *sync.Mutex
+	traceClient *trace.Client
+	logger      *logrus.Logger
+	wm          WorkerMetrics
+	stats       *statsd.Client
 }
 
 // IngestUDP on a Worker feeds the metric into the worker's PacketChan.
@@ -298,7 +299,6 @@ func NewWorker(id int, cl *trace.Client, logger *logrus.Logger, stats *statsd.Cl
 		QuitChan:         make(chan struct{}),
 		processed:        0,
 		imported:         0,
-		mutex:            &sync.Mutex{},
 		traceClient:      cl,
 		logger:           logger,
 		wm:               NewWorkerMetrics(),
@@ -329,23 +329,15 @@ func (w *Worker) Work() {
 	}
 }
 
-// MetricsProcessedCount is a convenince method for testing
-// that allows us to fetch the Worker's processed count
-// in a non-racey way.
 func (w *Worker) MetricsProcessedCount() int64 {
-	// w.mutex.Lock()
-	// defer w.mutex.Unlock()
-	// TKTK atomic
-	return w.processed
+	return atomic.LoadInt64(&w.processed)
 }
 
 // ProcessMetric takes a Metric and samples it
 //
 // This is standalone to facilitate testing
 func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
-	// w.mutex.Lock()
-	// defer w.mutex.Unlock()
-	w.processed++ // TKTK atomic
+	atomic.AddInt64(&w.processed, 1)
 	w.wm.Upsert(m.MetricKey, m.Scope, m.Tags)
 
 	switch m.Type {
@@ -411,12 +403,9 @@ func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
 
 // ImportMetric receives a metric from another veneur instance
 func (w *Worker) ImportMetric(other samplers.JSONMetric) {
-	// w.mutex.Lock()
-	// defer w.mutex.Unlock()
-
 	// we don't increment the processed metric counter here, it was already
 	// counted by the original veneur that sent this to us
-	w.imported++
+	atomic.AddInt64(&w.imported, 1)
 	if other.Type == counterTypeName || other.Type == gaugeTypeName {
 		// this is an odd special case -- counters that are imported are global
 		w.wm.Upsert(other.MetricKey, samplers.GlobalOnly, other.Tags)
@@ -462,9 +451,6 @@ func (w *Worker) ImportMetric(other samplers.JSONMetric) {
 
 // ImportMetricGRPC receives a metric from another veneur instance over gRPC
 func (w *Worker) ImportMetricGRPC(other *metricpb.Metric) (err error) {
-	// w.mutex.Lock()
-	// defer w.mutex.Unlock()
-
 	key := samplers.NewMetricKeyFromMetric(other)
 
 	scope := samplers.MixedScope
@@ -473,8 +459,7 @@ func (w *Worker) ImportMetricGRPC(other *metricpb.Metric) (err error) {
 	}
 
 	w.wm.Upsert(key, scope, other.Tags)
-	// TKTK atomic
-	w.imported++
+	atomic.AddInt64(&w.imported, 1)
 
 	switch v := other.GetValue().(type) {
 	case *metricpb.Metric_Counter:
@@ -522,22 +507,19 @@ func (w *Worker) ImportMetricGRPC(other *metricpb.Metric) (err error) {
 // Flush resets the worker's internal metrics and returns their contents.
 func (w *Worker) Flush() WorkerMetrics {
 	start := time.Now()
-	// This is a critical spot. The worker can't process metrics while this
-	// mutex is held! So we try and minimize it by copying the maps of values
-	// and assigning new ones.
+	// We will atomically swap out the worker's metrics to avoid any problems.
 	wm := NewWorkerMetrics()
-	// Only lock for as long as we need to replace the worker metrics,
-	// TKTK atomic pointer swap?
-	w.mutex.Lock()
 	ret := w.wm
-	w.wm = wm
-	w.mutex.Unlock()
+	wmOld := unsafe.Pointer(&w.wm)
+	wmNew := unsafe.Pointer(&wm)
+	atomic.SwapPointer(&wmOld, wmNew)
 
-	// TKTK Atomics
-	processed := w.processed
-	imported := w.imported
-	w.processed = 0
-	w.imported = 0
+	// Since we're not locking this globally, this might race and we might lose
+	// a couple of increments elsewhere, but that seems fine.
+	var processed int64
+	atomic.SwapInt64(&processed, 0)
+	var imported int64
+	atomic.SwapInt64(&imported, 0)
 
 	// Track how much time each worker takes to flush.
 	w.stats.Timing(
@@ -546,8 +528,8 @@ func (w *Worker) Flush() WorkerMetrics {
 		nil,
 		1.0,
 	)
-	w.stats.Count("worker.metrics_processed_total", processed, []string{}, 1.0)
-	w.stats.Count("worker.metrics_imported_total", imported, []string{}, 1.0)
+	w.stats.Count("worker.metrics_processed_total", int64(processed), []string{}, 1.0)
+	w.stats.Count("worker.metrics_imported_total", int64(imported), []string{}, 1.0)
 
 	return ret
 }
