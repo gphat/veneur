@@ -3,6 +3,7 @@ package veneur
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,7 @@ type Worker struct {
 	logger           *logrus.Logger
 	wm               WorkerMetrics
 	stats            *statsd.Client
+	tagKeysToStrip   []string
 }
 
 // IngestUDP on a Worker feeds the metric into the worker's PacketChan.
@@ -212,7 +214,12 @@ func (wm WorkerMetrics) appendExportedMetric(res []*metricpb.Metric, exp metricE
 }
 
 // NewWorker creates, and returns a new Worker object.
-func NewWorker(id int, cl *trace.Client, logger *logrus.Logger, stats *statsd.Client) *Worker {
+func NewWorker(id int, cl *trace.Client, logger *logrus.Logger, stats *statsd.Client, tagKeysToStrip []string) *Worker {
+	var tagKeys []string
+	for _, t := range tagKeysToStrip {
+		tagKeys = append(tagKeys, fmt.Sprintf("%s:", t))
+	}
+
 	return &Worker{
 		id:               id,
 		PacketChan:       make(chan samplers.UDPMetric, 32),
@@ -226,6 +233,7 @@ func NewWorker(id int, cl *trace.Client, logger *logrus.Logger, stats *statsd.Cl
 		logger:           logger,
 		wm:               NewWorkerMetrics(),
 		stats:            stats,
+		tagKeysToStrip:   tagKeys,
 	}
 }
 
@@ -314,14 +322,33 @@ func (w *Worker) ImportMetric(other samplers.JSONMetric) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
+	// Configuration may specify some tag keys that should be stripped from
+	// imports. Check the incoming tags and nuke any that are present
+	finalTags := other.Tags[:0]
+	for _, t := range other.Tags {
+		var found bool
+		for _, strip := range w.tagKeysToStrip {
+			if strings.HasPrefix(t, strip) {
+				// This one matches, flag it as such
+				found = true
+				// exit this for loop, no reason to keep checking
+				break
+			}
+		}
+		// Found tags don't get skipped.
+		if found != true {
+			finalTags = append(finalTags, t)
+		}
+	}
+
 	// we don't increment the processed metric counter here, it was already
 	// counted by the original veneur that sent this to us
 	w.imported++
 	if other.Type == counterTypeName || other.Type == gaugeTypeName {
 		// this is an odd special case -- counters that are imported are global
-		w.wm.Upsert(other.MetricKey, samplers.GlobalOnly, other.Tags)
+		w.wm.Upsert(other.MetricKey, samplers.GlobalOnly, finalTags)
 	} else {
-		w.wm.Upsert(other.MetricKey, samplers.MixedScope, other.Tags)
+		w.wm.Upsert(other.MetricKey, samplers.MixedScope, finalTags)
 	}
 
 	switch other.Type {
@@ -362,7 +389,26 @@ func (w *Worker) ImportMetricGRPC(other *metricpb.Metric) (err error) {
 		scope = samplers.GlobalOnly
 	}
 
-	w.wm.Upsert(key, scope, other.Tags)
+	// Configuration may specify some tag keys that should be stripped from
+	// imports. Check the incoming tags and nuke any that are present
+	finalTags := other.Tags[:0]
+	for _, t := range other.Tags {
+		var found bool
+		for _, strip := range w.tagKeysToStrip {
+			if strings.HasPrefix(t, strip) {
+				// This one matches, flag it as such
+				found = true
+				// exit this for loop, no reason to keep checking
+				break
+			}
+		}
+		// Found tags don't get skipped.
+		if found != true {
+			finalTags = append(finalTags, t)
+		}
+	}
+
+	w.wm.Upsert(key, scope, finalTags)
 	w.imported++
 
 	switch v := other.GetValue().(type) {

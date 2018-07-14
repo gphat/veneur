@@ -19,7 +19,7 @@ import (
 )
 
 func TestWorker(t *testing.T) {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 
 	m := samplers.UDPMetric{
 		MetricKey: samplers.MetricKey{
@@ -40,7 +40,7 @@ func TestWorker(t *testing.T) {
 }
 
 func TestWorkerLocal(t *testing.T) {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 
 	m := samplers.UDPMetric{
 		MetricKey: samplers.MetricKey{
@@ -60,7 +60,7 @@ func TestWorkerLocal(t *testing.T) {
 }
 
 func TestWorkerGlobal(t *testing.T) {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 
 	gc := samplers.UDPMetric{
 		MetricKey: samplers.MetricKey{
@@ -92,8 +92,42 @@ func TestWorkerGlobal(t *testing.T) {
 	assert.Equal(t, 0, len(w.wm.counters), "should have no local counters")
 }
 
+func TestWorkerImportStripTag(t *testing.T) {
+	// Don't allow a host tag key!
+	w := NewWorker(1, nil, logrus.New(), nil, []string{"host"})
+	testc := samplers.NewCounter("a.b.c", []string{"foo:bar", "host:farts"})
+	testc.Sample(1.0, 1.0)
+
+	jsonMetric, err := testc.Export()
+	assert.NoError(t, err, "should have exported successfully")
+	w.ImportMetric(jsonMetric)
+
+	wm := w.Flush()
+	assert.Len(t, wm.globalCounters, 1, "number of flushed counters")
+	for _, v := range wm.globalCounters {
+		assert.NotContains(t, v.Tags, "host:farts", "should not contain host tag key")
+	}
+}
+
+func TestWorkerGRPCImportStripTag(t *testing.T) {
+	// Don't allow a host tag key!
+	w := NewWorker(1, nil, logrus.New(), nil, []string{"host"})
+	testc := samplers.NewCounter("a.b.c", []string{"foo:bar", "host:farts"})
+	testc.Sample(1.0, 1.0)
+
+	pbMetric, err := testc.Metric()
+	assert.NoError(t, err, "should have exported successfully")
+	w.ImportMetricGRPC(pbMetric)
+
+	wm := w.Flush()
+	assert.Len(t, wm.globalCounters, 1, "number of flushed counters")
+	for _, v := range wm.globalCounters {
+		assert.NotContains(t, v.Tags, "host:farts", "should not contain host tag key")
+	}
+}
+
 func TestWorkerImportSet(t *testing.T) {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 	testset := samplers.NewSet("a.b.c", nil)
 	testset.Sample("foo", 1.0)
 	testset.Sample("bar", 1.0)
@@ -108,7 +142,7 @@ func TestWorkerImportSet(t *testing.T) {
 }
 
 func TestWorkerImportHistogram(t *testing.T) {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 	testhisto := samplers.NewHist("a.b.c", nil)
 	testhisto.Sample(1.0, 1.0)
 	testhisto.Sample(2.0, 1.0)
@@ -123,7 +157,7 @@ func TestWorkerImportHistogram(t *testing.T) {
 }
 
 func TestWorkerStatusMetric(t *testing.T) {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 
 	m := samplers.UDPMetric{
 		MetricKey: samplers.MetricKey{
@@ -281,7 +315,7 @@ type testMetricExporter interface {
 }
 
 func exportMetricAndFlush(t testing.TB, exp testMetricExporter) WorkerMetrics {
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 	m, err := exp.Metric()
 	assert.NoErrorf(t, err, "exporting the metric '%s' shouldn't have failed",
 		exp.GetName())
@@ -318,7 +352,7 @@ func TestWorkerImportMetricGRPC(t *testing.T) {
 	})
 	t.Run("timer", func(t *testing.T) {
 		t.Parallel()
-		w := NewWorker(1, nil, logrus.New(), nil)
+		w := NewWorker(1, nil, logrus.New(), nil, nil)
 		h := samplers.NewHist("test.timer", nil)
 		h.Sample(1.0, 1.0)
 
@@ -344,7 +378,7 @@ func TestWorkerImportMetricGRPC(t *testing.T) {
 func TestWorkerImportMetricGRPCNilValue(t *testing.T) {
 	t.Parallel()
 
-	w := NewWorker(1, nil, logrus.New(), nil)
+	w := NewWorker(1, nil, logrus.New(), nil, nil)
 	metric := &metricpb.Metric{
 		Name:  "test",
 		Type:  metricpb.Type_Histogram,

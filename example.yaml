@@ -44,6 +44,12 @@ forward_address: ""
 # or unset, HTTP will be used.
 forward_use_grpc: false
 
+# Metrics that are imported may need some tags stripped to remove their uniqueness,
+# for example `host`. Any strings here will be compared as a prefix (with a :)
+# for removal.
+imported_tag_keys_to_strip:
+  - ""
+
 # How often to flush. When flushing to Datadog, changing this
 # value when you've already emitted metrics will break your time
 # series data.

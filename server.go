@@ -265,7 +265,7 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 
 	// Use the pre-allocated Workers slice to know how many to start.
 	for i := range ret.Workers {
-		ret.Workers[i] = NewWorker(i+1, ret.TraceClient, log, ret.Statsd)
+		ret.Workers[i] = NewWorker(i+1, ret.TraceClient, log, ret.Statsd, conf.ImportedTagKeysToStrip)
 		// do not close over loop index
 		go func(w *Worker) {
 			defer func() {
