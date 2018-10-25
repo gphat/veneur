@@ -2,7 +2,6 @@ package xray
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hash/crc32"
 	"math"
@@ -83,8 +82,13 @@ func NewXRaySpanSink(daemonAddr string, sampleRatePercentage int, commonTags map
 	}).Info("Creating X-Ray client")
 
 	var sampleThreshold uint32
-	if sampleRatePercentage <= 0 || sampleRatePercentage > 100 {
-		return nil, errors.New("Span sample rate percentage must be greater than 0% and less than or equal to 100%")
+	if sampleRatePercentage < 0 {
+		log.WithField("sampleRatePercentage", sampleRatePercentage).Warn("Sample rate < 0 is invalid, defaulting to 0")
+		sampleRatePercentage = 0
+	}
+	if sampleRatePercentage > 100 {
+		log.WithField("sampleRatePercentage", sampleRatePercentage).Warn("Sample rate > 100 is invalid, defaulting to 100")
+		sampleRatePercentage = 100
 	}
 
 	// Set the sample threshold to (sample rate) * (maximum value of uint32), so that
