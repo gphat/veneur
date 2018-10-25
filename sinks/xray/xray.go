@@ -98,7 +98,7 @@ func NewXRaySpanSink(daemonAddr string, sampleRatePercentage int, commonTags map
 
 	// Build a regex for cleaning names based on valid characters from:
 	// https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html#api-segmentdocuments-fields
-	reg, err := regexp.Compile("[^a-zA-Z0-9_\\.\\:\\/\\%\\&#=+\\-\\@\\s\\\\]+")
+	reg, err := regexp.Compile(`[^a-zA-Z0-9_\.\:\/\%\&#=+\-\@\s\\]+`)
 	if err != nil {
 		return nil, err
 	}
