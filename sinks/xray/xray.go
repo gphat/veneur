@@ -157,6 +157,11 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 			annos[k] = v
 		}
 	}
+	if ssfSpan.Indicator {
+		annos["indicator"] = "true"
+	} else {
+		annos["indicator"] = "false"
+	}
 
 	name := string(x.nameRegex.ReplaceAll([]byte(ssfSpan.Service), []byte("_")))
 	if len(name) > 200 {
