@@ -559,7 +559,7 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 				ret.registerPlugin(plugin)
 			}
 		} else {
-			logger.Info("AWS credentials not found")
+			logger.Info("AWS S3 credentials not found. S3 plugin is disabled.")
 		}
 	} else {
 		logger.Info("AWS S3 bucket not set. Skipping S3 Plugin initialization.")
