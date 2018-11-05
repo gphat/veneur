@@ -178,7 +178,6 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		Name:      name,
 		StartTime: float64(float64(ssfSpan.StartTimestamp) / float64(time.Second)),
 		EndTime:   float64(float64(ssfSpan.EndTimestamp) / float64(time.Second)),
-		Metadata:  metadata,
 		Namespace: "remote",
 		Error:     ssfSpan.Error,
 		// Because X-Ray doesn't offer another way to get this data in, we pretend
