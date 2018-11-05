@@ -26,6 +26,7 @@ func TestConstructor(t *testing.T) {
 
 func TestIngestSpans(t *testing.T) {
 
+	t.Skip()
 	// Load up a fixture to compare the output to what we get over UDP
 	reader, err := os.Open(filepath.Join("..", "..", "fixtures", "xray_segment.json"))
 	assert.NoError(t, err)
@@ -94,6 +95,7 @@ func TestIngestSpans(t *testing.T) {
 }
 
 func TestSampleSpans(t *testing.T) {
+	t.Skip()
 
 	// Load up a fixture to compare the output to what we get over UDP
 	reader, err := os.Open(filepath.Join("..", "..", "fixtures", "xray_segment.json"))
