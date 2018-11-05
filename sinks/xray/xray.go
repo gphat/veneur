@@ -148,19 +148,19 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		return nil
 	}
 
-	annos := map[string]string{}
+	metadata := map[string]string{}
 	for k, v := range x.commonTags {
-		annos[k] = v
+		metadata[k] = v
 	}
 	for k, v := range ssfSpan.Tags {
 		if k != XRayTagNameClientIP {
-			annos[k] = v
+			metadata[k] = v
 		}
 	}
 	if ssfSpan.Indicator {
-		annos["indicator"] = "true"
+		metadata["indicator"] = "true"
 	} else {
-		annos["indicator"] = "false"
+		metadata["indicator"] = "false"
 	}
 
 	name := string(x.nameRegex.ReplaceAll([]byte(ssfSpan.Service), []byte("_")))
@@ -174,13 +174,13 @@ func (x *XRaySpanSink) Ingest(ssfSpan *ssf.SSFSpan) error {
 		// ID is a 64-bit hex
 		ID: fmt.Sprintf("%016x", ssfSpan.Id),
 		// Trace ID is version-startTimeUnixAs8CharHex-traceIdAs24CharHex
-		TraceID:     fmt.Sprintf("1-%08x-%024x", ssfSpan.StartTimestamp/1e9, ssfSpan.TraceId),
-		Name:        name,
-		StartTime:   float64(float64(ssfSpan.StartTimestamp) / float64(time.Second)),
-		EndTime:     float64(float64(ssfSpan.EndTimestamp) / float64(time.Second)),
-		Annotations: annos,
-		Namespace:   "remote",
-		Error:       ssfSpan.Error,
+		TraceID:   fmt.Sprintf("1-%08x-%024x", ssfSpan.StartTimestamp/1e9, ssfSpan.TraceId),
+		Name:      name,
+		StartTime: float64(float64(ssfSpan.StartTimestamp) / float64(time.Second)),
+		EndTime:   float64(float64(ssfSpan.EndTimestamp) / float64(time.Second)),
+		Metadata:  metadata,
+		Namespace: "remote",
+		Error:     ssfSpan.Error,
 		// Because X-Ray doesn't offer another way to get this data in, we pretend
 		// it's HTTP for now. It's likely that as X-Ray and/or Veneur develop this
 		// will change.

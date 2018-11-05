@@ -1,2 +1,2 @@
 {"format": "json", "version": 1}
-{"name":"farts-srv","id":"0000000000000002","trace_id":"1-5a7f1b99-000000003fdd0f60394d200c","parent_id":"0000000000000001","start_time":1518279577,"end_time":1518279579,"type":"subsegment","namespace":"remote","error":false,"annotations":{"baz":"qux","foo":"bar","indicator":"false"},"http":{"request":{"url":"farts-srv:farting farty farts"},"response":{}}}
+{"name":"farts-srv","id":"0000000000000002","trace_id":"1-5a7f1b99-000000003fdd0f60394d200c","parent_id":"0000000000000001","start_time":1518279577,"end_time":1518279579,"type":"subsegment","namespace":"remote","error":false,"metadata":{"baz":"qux","foo":"bar","indicator":"false"},"http":{"request":{"url":"farts-srv:farting farty farts"},"response":{}}}
